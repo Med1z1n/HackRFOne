@@ -4,10 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Configuration
-center_freq = 189e6        # DTV Channel 9 center frequency (Hz)
+center_freq = 198e6        # DTV Channel 11 center frequency (Hz)
 sample_rate = 20e6         # Sample rate (Hz)
 baseband_filter = sample_rate / 2    # Baseband filter bandwidth (Hz)
-recording_time = 5         # Record for 5 seconds (longer than before)
+recording_time = 0.5         # Record for 5 seconds (longer than before)
 lna_gain = 32
 vga_gain = 0
 
@@ -26,7 +26,7 @@ sdr.pyhackrf_set_vga_gain(vga_gain)
 print(f"Tuning to {center_freq/1e6} MHz with sample rate {sample_rate/1e6} MHz")
 
 # Open file to write raw IQ samples (int8 interleaved)
-filename = "dtv_channel9_iq_raw.bin"
+filename = "dtv_channel_iq_raw.bin"
 f = open(filename, "wb")
 
 def rx_callback(device, buffer, buffer_length, valid_length):
@@ -59,9 +59,6 @@ raw_data = np.fromfile(filename, dtype=np.int8)
 iq_samples = raw_data[0::2] + 1j * raw_data[1::2]
 iq_samples = iq_samples.astype(np.complex64) / 128.0  # normalize to [-1,1]
 
-# Discard initial transient samples if desired
-iq_samples = iq_samples[100000:]
-
 # Plot time domain
 plt.figure()
 plt.plot(np.real(iq_samples[:5000]), label='Real')
@@ -71,8 +68,8 @@ plt.xlabel("Sample Index")
 plt.ylabel("Amplitude")
 plt.legend()
 plt.tight_layout()
-plt.savefig("dtv_channel9_time.png")
-print("Saved time domain plot as dtv_channel9_time.png")
+plt.savefig("dtv_channel_time.png")
+print("Saved time domain plot as dtv_channel11_time.png")
 
 # Plot frequency domain
 fft_size = 16384
@@ -87,6 +84,6 @@ plt.xlabel("Frequency [MHz]")
 plt.ylabel("Power [dB]")
 plt.grid()
 plt.tight_layout()
-plt.savefig("dtv_channel9_freq.png")
-print("Saved frequency domain plot as dtv_channel9_freq.png")
+plt.savefig("dtv_channel_freq.png")
+print("Saved frequency domain plot as dtv_channel_freq.png")
 
