@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 center_freq = 198e6        # DTV Channel 11 center frequency (Hz)
 sample_rate = 20e6         # Sample rate (Hz)
 baseband_filter = sample_rate / 2    # Baseband filter bandwidth (Hz)
-recording_time = 0.5         # Record for 5 seconds (longer than before)
+recording_time = 1.0         # Record for 5 seconds (longer than before)
 lna_gain = 32
 vga_gain = 0
 
