@@ -1,220 +1,167 @@
-import java.lang.reflect.Array;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
+# Copyright 2014 Clayton Smith
+#
+# This file is part of sdr-examples
+#
+# sdr-examples is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+#
+# sdr-examples is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with sdr-examples; see the file COPYING.  If not, write to
+# the Free Software Foundation, Inc., 51 Franklin Street,
+# Boston, MA 02110-1301, USA.
+# Modified for video and improved sytax by VLadislav Fomitchev 2017
 
-public class BinaryMinHeap <T extends Comparable<T>> implements MyPriorityQueue<T> {
-    private int size; // Maintains the size of the data structure
-    private T[] arr; // The array containing all items in the data structure
-                     // index 0 must be utilized
-    private Map<T, Integer> itemToIndex; // Keeps track of which index of arr holds each item.
-
-    public BinaryMinHeap() {
-        // This line just creates an array of type T. We're doing it this way just
-        // because of weird java generics stuff (that I frankly don't totally understand)
-        // If you want to create a new array anywhere else (e.g. to resize) then
-        // You should mimic this line. The second argument is the size of the new array.
-        arr = (T[]) Array.newInstance(Comparable.class, 10);
-        size = 0;
-        itemToIndex = new HashMap<>();
-    }
-
-    // helper method to get the parent index
-    private int getParent(int i) {
-        if (i == 0) {
-            return -1;
-        }
-        return (i - 1) / 2;
-    }
-
-    // swap two elements of the 'heap'
-    // also updates the hashmap
-    private void swap(int i, int j) {
-        T temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
-        itemToIndex.put(arr[i], i);
-        itemToIndex.put(arr[j], j);
-    }
-
-    // move the item at index i "rootward" until
-    // the heap property holds
-    private void percolateUp(int i) {
-        // if we have a parent, and we're less than them swap
-        // then continue to check until we either don't have parents
-        // or we are in the right spot
-        int p = getParent(i);
-        if (p != -1 && arr[p].compareTo(arr[i]) > 0) {
-            swap(i, p);
-            percolateUp(p);
-        }
-    }
-
-    // move the item at index i "leafward" until
-    // the heap property holds
-    private void percolateDown(int i) {
-
-        // get the index for the left, right nodes
-        int l = i * 2 + 1;
-        int r = i * 2 + 2;
-        int cur_min = i;
-
-        // basically set the cur_min to the minimum value index of the subtree
-        // of the given index, and its two child nodes
-        if (l < size && arr[l].compareTo(arr[cur_min]) < 0) {
-            cur_min = l;
-        }
-
-        if (r < size && arr[r].compareTo(arr[cur_min]) < 0) {
-            cur_min = r;
-        }
-
-        // if we have a child that's less than us (either right or left)
-        // swap and continue to bubble down, otherwise we're done
-        if (cur_min != i) {
-            swap(i, cur_min);
-            percolateDown(cur_min);
-        }
-
-    }
-
-    // copy all items into a larger array to make more room.
-    private void resize(){
-        T[] larger = (T[]) Array.newInstance(Comparable.class, arr.length*2);
-        for (int i = 0; i < arr.length; i++){
-            larger[i] = arr[i];
-        }
-        arr = larger;
-    }
-
-    // O(log n) run time
-    public void insert(T item) {
-        if (size == arr.length) { // need more space
-            resize();
-        }
-        arr[size] = item;  // add as the rightmost child
-        itemToIndex.put(item, size);  // update map
-        percolateUp(size);  // check it's in the right spot
-        size++;
-
-    }
+from PIL import Image
+from array import array
+import math
+import sys
 
 
-    public T extract() {
-        if (size == 0) {
-            throw new IllegalStateException("Heap is empty");
-        }
-        // save item
-        T item = arr[0];
+COLOR_FREQ = 3579545.0
+SAMPLES_PER_LINE = 772
+SAMP_RATE = SAMPLES_PER_LINE * 60 * .999 * 525 / 2
+RADIANS_PER_SAMPLE = 2 * math.pi * COLOR_FREQ / SAMP_RATE
 
-        // put the rightmost child as the new root
-        size--;
-        arr[0] = arr[size];
-        arr[size] = null;
-        // update the hashmap
-        itemToIndex.put(arr[0], 0);
+SYNCH_LEVEL = -40.0
+BLANKING_LEVEL = 0.0
+BLACK_LEVEL = 7.5
+WHITE_LEVEL = 100.0
 
-        itemToIndex.remove(item);
+EQUALIZING_PULSE = [SYNCH_LEVEL] * 28 + [BLANKING_LEVEL] * 358
+SYNCHRONIZING_PULSE = [SYNCH_LEVEL] * 329 + [BLANKING_LEVEL] * 57
+INTERVALS = EQUALIZING_PULSE * 6 + SYNCHRONIZING_PULSE * 6 + EQUALIZING_PULSE * 6
+EXTRA_HALF_LINE = [BLANKING_LEVEL] * 386
 
-        percolateDown(0);  // adjust its place
-        return item;
+FRONT_PORCH = [BLANKING_LEVEL] * 18
+SYNCH_PULSE = [SYNCH_LEVEL] * 57
 
-    }
 
-    // Remove the item at the given index.
-    // Make sure to maintain the heap property!
-    private T remove(int index) {
+def main():
+    # check for args
+    if len(sys.argv) < 3:
+        print("Usage: " + sys.argv[0] + " <input_filename (images: PNG)> [output_filename] [framecount]")
+        exit()
 
-        // just swap the item to remove with the root
-        // then extract it
-        swap(index, 0);
-        return extract();
+    framecount = int(sys.argv[3])
+    input_filename = sys.argv[1]
+    output_filename = sys.argv[2]
+    #framecount = 4115
+    #input_filename = "C:\\Users\\vladi\\Downloads\\SDR\\sdr-examples-master\\ntsc\\frames\\frame.png"
+    #output_filename = "simpsons.dat"
 
-    }
+    if framecount <= 1:
+        image = Image.open(input_filename)
+        pixels = list(image.getdata())
+        ntsc_baseband = genFields(pixels)
+        writeFile(ntsc_baseband, output_filename, 'wb')
 
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public void remove(T item){
+    else:
+        extension = input_filename[-4:]
+        file = input_filename[:-4]
+        for i in range(framecount):
+            currentframe = file + "%03d" % (i + 1,) + extension
+            print(currentframe)
+            image = Image.open(currentframe)
+            pixels = list(image.getdata())
+            ntsc_baseband = genFields(pixels)
+            if i == 0:
+                writeFile(ntsc_baseband, output_filename, 'wb')
+            else:
+                writeFile(ntsc_baseband, output_filename, 'ab')
 
-        if (itemToIndex.get(item) == null) {
-            throw new IllegalArgumentException("Item is not in the heap");
-        } else {
-            remove(itemToIndex.get(item));
-        }
-    }
 
-    // Determine whether to percolate up/down
-    // the item at the given index, then do it!
-    private void updatePriority(int index) {
-        // percolateDown first
-        // if we adjusted priority up
-        // percolate down should finish quick
-        T item = arr[index];
-        percolateDown(index);
-        // if we didn't go anywhere try going up
-        if (itemToIndex.get(item) == index) {
-            percolateUp(index);
-        }
-    }
 
-    // This method gets called after the client has 
-    // changed an item in a way that may change its
-    // priority. In this case, the client should call
-    // updatePriority on that changed item so that 
-    // the heap can restore the heap property.
-    // Throws an IllegalArgumentException if the given
-    // item is not an element of the priority queue.
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public void updatePriority(T item){
-	    if (!(itemToIndex.containsKey(item))){
-            throw new IllegalArgumentException("Given item is not present in the priority queue!");
-	    }
-        updatePriority(itemToIndex.get(item));
-    }
 
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public boolean isEmpty(){
-        return size == 0;
-    }
+def addBackPorch(ntsc_signal):
+    ntsc_signal += [BLANKING_LEVEL] * 13
+    l = len(ntsc_signal)
+    for x in range(l, l + 31):
+        ntsc_signal += [BLANKING_LEVEL + 20 * math.sin(math.pi + RADIANS_PER_SAMPLE * x)]
+    ntsc_signal += [BLANKING_LEVEL] * 13
+    return ntsc_signal
 
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public int size(){
-        return size;
-    }
 
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public T peek(){
-        if (isEmpty()) {
-            throw new IllegalStateException();
-        }
-        return arr[0];
-    }
-    
-    // We have provided a recommended implementation
-    // You're welcome to do something different, though!
-    public List<T> toList(){
-        List<T> copy = new ArrayList<>();
-        for(int i = 0; i < size; i++){
-            copy.add(i, arr[i]);
-        }
-        return copy;
-    }
+def addNonVisibleLine(ntsc_signal):
+    ntsc_signal += SYNCH_PULSE
+    ntsc_signal = addBackPorch(ntsc_signal)
+    ntsc_signal += [BLANKING_LEVEL] * 658
+    return ntsc_signal
 
-    // For debugging
-    public String toString(){
-        if(size == 0) {
-            return "[]";
-        }
-        String str = "[(" + arr[0] + " " + itemToIndex.get(arr[0]) + ")";
-        for(int i = 1; i < size; i++ ){
-            str += ",(" + arr[i] + " " + itemToIndex.get(arr[i]) + ")";
-        }
-        return str + "]";
-    }
-    
-}
+
+def addFirstHalfFrame(ntsc_signal):
+    ntsc_signal += SYNCH_PULSE
+    ntsc_signal = addBackPorch(ntsc_signal)
+    ntsc_signal += [BLACK_LEVEL] * 272
+    return ntsc_signal
+
+
+def addSecondHalfFrame(ntsc_signal):
+    ntsc_signal += SYNCH_PULSE
+    ntsc_signal = addBackPorch(ntsc_signal)
+    ntsc_signal += [BLANKING_LEVEL] * 272 + [BLACK_LEVEL] * 368 + FRONT_PORCH
+    return ntsc_signal
+
+
+def addPixel(ntsc_signal, p):
+    Er = float(p[0]) / 255
+    Eg = float(p[1]) / 255
+    Eb = float(p[2]) / 255
+
+    Ey = 0.30 * Er + 0.59 * Eg + 0.11 * Eb
+    Eq = 0.41 * (Eb - Ey) + 0.48 * (Er - Ey)
+    Ei = -0.27 * (Eb - Ey) + 0.74 * (Er - Ey)
+
+    # cache cos and sin of phase
+    phase = RADIANS_PER_SAMPLE * len(ntsc_signal) + (33.0 / 180 * math.pi)
+    Em = Ey + Eq * math.sin(phase) + Ei * math.cos(phase)
+
+    ntsc_signal += [BLACK_LEVEL + (WHITE_LEVEL - BLACK_LEVEL) * Em]
+    return ntsc_signal
+
+
+def genFields(pixels):
+    # Generate even field
+    ntsc_signal = []
+    ntsc_signal += INTERVALS
+    for x in range(13):
+        ntsc_signal = addNonVisibleLine(ntsc_signal)
+    for line in range(0, 480, 2):
+        ntsc_signal += SYNCH_PULSE
+        ntsc_signal = addBackPorch(ntsc_signal)
+        for x in range(line * 640, (line + 1) * 640):
+            ntsc_signal = addPixel(ntsc_signal, pixels[x])
+        ntsc_signal += FRONT_PORCH
+    ntsc_signal = addFirstHalfFrame(ntsc_signal)
+
+    # Generate odd field
+    ntsc_signal += INTERVALS + EXTRA_HALF_LINE
+    for x in range(12):
+        ntsc_signal = addNonVisibleLine(ntsc_signal)
+    ntsc_signal = addSecondHalfFrame(ntsc_signal)
+    for line in range(1, 481, 2):
+        ntsc_signal += SYNCH_PULSE
+        ntsc_signal = addBackPorch(ntsc_signal)
+        for x in range(line * 640, (line + 1) * 640):
+            ntsc_signal = addPixel(ntsc_signal, pixels[x])
+        ntsc_signal += FRONT_PORCH
+
+    ntsc_signal = [0.75 - (0.25 / 40) * x for x in ntsc_signal]
+    return ntsc_signal
+
+
+def writeFile(ntsc_signal, filename, mode):
+    f = open(filename, mode)
+    ntsc_array = array('f', ntsc_signal)
+    ntsc_array.tofile(f)
+    f.close()
+
+main()
+
+# image = Image.open("smpte-bars.png")
