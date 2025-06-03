@@ -11,7 +11,6 @@
 
 from PyQt5 import Qt
 from gnuradio import qtgui
-from PyQt5 import QtCore
 from gnuradio import analog
 from gnuradio import blocks
 import pmt
@@ -73,15 +72,11 @@ class test_nogui(gr.top_block, Qt.QWidget):
         self.if_gain = if_gain = 40
         self.digital_gain = digital_gain = 0.9
         self.audio_rate = audio_rate = int(48000)
-        self.FM_ampl = FM_ampl = 0.11
 
         ##################################################
         # Blocks
         ##################################################
 
-        self._FM_ampl_range = qtgui.Range(0, 1, 0.01, 0.11, 200)
-        self._FM_ampl_win = qtgui.RangeWidget(self._FM_ampl_range, self.set_FM_ampl, "FM amplitude", "counter_slider", float, QtCore.Qt.Horizontal)
-        self.top_layout.addWidget(self._FM_ampl_win)
         self.zero = analog.sig_source_f(0, analog.GR_CONST_WAVE, 0, 0, 0)
         self.rational_resampler_xxx_0_0 = filter.rational_resampler_ccc(
                 interpolation=int(12.15e6),
@@ -102,7 +97,7 @@ class test_nogui(gr.top_block, Qt.QWidget):
         self.osmosdr_sink_0.set_bandwidth(0, 0)
         self.freq_xlating_fir_filter_xxx_0 = filter.freq_xlating_fir_filter_ccc(1, [1], (-4.5e6), 12.15e6)
         self.blocks_wavfile_source_0 = blocks.wavfile_source('C:\\Users\\conno\\Downloads\\engineer_no01.wav', True)
-        self.blocks_multiply_const_vxx_1 = blocks.multiply_const_cc(FM_ampl)
+        self.blocks_multiply_const_vxx_1 = blocks.multiply_const_cc(0.11)
         self.blocks_multiply_const_vxx_0 = blocks.multiply_const_ff(digital_gain)
         self.blocks_float_to_complex_0 = blocks.float_to_complex(1)
         self.blocks_file_source_0 = blocks.file_source(gr.sizeof_float*1, 'C:\\Users\\conno\\Downloads\\test.dat', True, 0, 0)
@@ -196,13 +191,6 @@ class test_nogui(gr.top_block, Qt.QWidget):
 
     def set_audio_rate(self, audio_rate):
         self.audio_rate = audio_rate
-
-    def get_FM_ampl(self):
-        return self.FM_ampl
-
-    def set_FM_ampl(self, FM_ampl):
-        self.FM_ampl = FM_ampl
-        self.blocks_multiply_const_vxx_1.set_k(self.FM_ampl)
 
 
 
