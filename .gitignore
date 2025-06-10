@@ -1,0 +1,3 @@
+cpp/hackrf
+cpp/*.o
+.vscode
